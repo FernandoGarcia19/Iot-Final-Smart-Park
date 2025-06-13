@@ -5,37 +5,36 @@
 
 class SmartCounter: public Sensor{
   private:
-    int carCounter; 
-    unsigned long startLapsus; 
-    unsigned long endLapsus; 
+    unsigned long startMillis = 0;
+    bool timingBlock = false;
+    bool hasTriggered = false;
+    String currentState;
   public:
     SmartCounter(const byte& pin, const int& threshold, const int& lapsus)
-    : Sensor(pin, threshold, lapsus), carCounter(0), startLapsus(0), endLapsus(0){
-    }
-    ~SmartCounter(){}
+      : Sensor(pin, threshold, lapsus), currentState("CLEAR") {}
 
-    int getCarCounter(){
-      return carCounter;
-    }
-    
-    void loop(){
+    ~SmartCounter() {}
+
+    void loop() {
       readLightValue();
-      if(lightValue <= threshold && !isBlocked){
-        startLapsus = millis();
-        isBlocked = true;
-      } else if (lightValue > threshold && isBlocked){
-        endLapsus = millis();
-        isBlocked = false;
-        int blockedTime = (endLapsus - startLapsus) / 1000;
-        if (blockedTime >= lapsus){
-          carCounter++;
+      if (lightValue <= threshold) {
+        if (!timingBlock) {
+          startMillis = millis();
+          timingBlock = true;
+        } else if (!hasTriggered && (millis() - startMillis >= (unsigned long)(lapsus * 1000))) {
+          currentState = "BLOCKED";
+          hasTriggered = true;
         }
+      } else {
+        // Reset when light is restored
+        timingBlock = false;
+        hasTriggered = false;
+        currentState = "CLEAR";
       }
-      //delay(SMART_COUNTER_DELAY);
     }
 
-    void setCarCounter(int carCount){
-      this->carCounter = carCount;
+    String getCurrentState() {
+      return currentState;
     }
 
 };

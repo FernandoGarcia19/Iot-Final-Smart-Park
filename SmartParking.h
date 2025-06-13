@@ -6,8 +6,8 @@
 #include "./Sensor/SmartCounter.h"
 #include "./Actuator/Actuator.h"
 
-#define DEF_THRESHOLD 2000
-#define DEF_LAPSUS 1
+#define DEF_THRESHOLD 1600
+#define DEF_LAPSUS 2
 
 class SmartParking {
   private:
@@ -17,8 +17,8 @@ class SmartParking {
     GateSensor gateSensor;
     SmartCounter counterSensor;
 
-    String currentState;
-    int currentCarCount;
+    String currentCounterState;
+    String currentGateState;
 
     const char* updateTopic;
     const char* deltaTopic;
@@ -29,9 +29,10 @@ class SmartParking {
 
     void reportState()
     {
-      outputDoc["state"]["reported"]["gate_actuator"]["gate_state"] = actuator.getState();
-      outputDoc["state"]["reported"]["gate_sensor"]["sensor_state"] = gateSensor.getCurrentState();
-      outputDoc["state"]["reported"]["car_count"] = counterSensor.getCarCounter();
+      outputDoc.clear();
+      outputDoc["state"]["reported"]["gate_actuator"]= actuator.getState();
+      // outputDoc["state"]["reported"]["gate_sensor"] = gateSensor.getCurrentState();
+      // outputDoc["state"]["reported"]["counter_sensor"] = counterSensor.getCurrentState();
       outputDoc["state"]["reported"]["config"]["threshold"] = gateSensor.getThreshold();
       outputDoc["state"]["reported"]["config"]["lapsus"] = gateSensor.getLapsus();
       size_t len = serializeJson(outputDoc, outputBuffer, sizeof(outputBuffer));
@@ -40,7 +41,7 @@ class SmartParking {
     }
 
     void reportGateState(){
-      outputDoc["state"]["reported"]["gate_actuator"]["gate_state"] = actuator.getState();
+      outputDoc["state"]["reported"]["gate_actuator"] = actuator.getState();
       size_t len = serializeJson(outputDoc, outputBuffer, sizeof(outputBuffer));
       outputBuffer[len] = '\0'; 
       mqttClient.publish(updateTopic, outputBuffer);
@@ -54,15 +55,19 @@ class SmartParking {
       mqttClient.publish(updateTopic, outputBuffer);
     }
 
-    void reportSensorBlocked(){
-      outputDoc["state"]["reported"]["gate_sensor"]["sensor_state"] = gateSensor.getCurrentState();
+    void reportGateBlocked(){
+      outputDoc.clear();
+      outputDoc["state"]["reported"]["gate_sensor"] = gateSensor.getCurrentState();
+      outputDoc["state"]["reported"]["gate_actuator"]= actuator.getState();
       size_t len = serializeJson(outputDoc, outputBuffer, sizeof(outputBuffer));
       outputBuffer[len] = '\0'; 
       mqttClient.publish(updateTopic, outputBuffer);
     }
 
-    void reportCar(){
-      outputDoc["state"]["reported"]["car_count"] = counterSensor.getCarCounter();
+    void reportCounterBlocked(){
+      outputDoc.clear();
+      outputDoc["state"]["reported"]["counter_sensor"]= counterSensor.getCurrentState();
+      outputDoc["state"]["reported"]["gate_actuator"]= actuator.getState();
       size_t len = serializeJson(outputDoc, outputBuffer, sizeof(outputBuffer));
       outputBuffer[len] = '\0'; 
       mqttClient.publish(updateTopic, outputBuffer);
@@ -82,21 +87,11 @@ class SmartParking {
       counterSensor.setLapsus(lapsus);
     }
 
-    void setCarCount(int carCount){
-      counterSensor.setCarCounter(carCount);
-    }
-
     void handleDelta(JsonVariant state) {
       if (state.containsKey("gate_actuator")) {
-        String gateState = state["gate_actuator"]["gate_state"].as<String>();
+        String gateState = state["gate_actuator"].as<String>();
         manageServoGate(gateState);
-        reportGateState();
-      }
-
-      if (state.containsKey("car_count")) {
-        int carCount = state["car_count"].as<int>();
-        setCarCount(carCount);
-        reportCar();
+        //reportGateState();
       }
 
       bool configChanged = false;
@@ -117,7 +112,7 @@ class SmartParking {
         }
 
         if (configChanged) {
-          reportConfig();
+          //reportConfig();
         }
       }
     }
@@ -128,7 +123,7 @@ class SmartParking {
       : wifiManager(SSID, password),
         mqttClient(broker, port, clientId),
         actuator(actuatorPin), gateSensor(gateSensorPin, DEF_THRESHOLD, DEF_LAPSUS), counterSensor(counterSensorPin, DEF_THRESHOLD, DEF_LAPSUS),
-        updateTopic(updateTopic), deltaTopic(deltaTopic), currentState("CLEAR"), currentCarCount(0)
+        updateTopic(updateTopic), deltaTopic(deltaTopic), currentCounterState("CLEAR"), currentGateState("CLEAR")
     {
     }
 
@@ -154,11 +149,11 @@ class SmartParking {
           Serial.println(err.c_str());
           return;
         }
-      
         JsonVariant deltaState = inputDoc["state"];
         this->handleDelta(deltaState);  // your custom processor
+        reportState();
+        inputDoc.clear();
       });
-      
     }
 
     void loop(){
@@ -172,17 +167,20 @@ class SmartParking {
       gateSensor.loop();
       counterSensor.loop();
       //actuator.loop();
- 
-      if(currentState != gateSensor.getCurrentState()){
-        currentState = gateSensor.getCurrentState();
+      // Serial.print("Gate: ");
+      // Serial.println(gateSensor.getLightValue());
+      if(currentGateState != gateSensor.getCurrentState()){
+        currentGateState = gateSensor.getCurrentState();
         // reportGateState();
-        reportSensorBlocked();
+        reportGateBlocked();
+      }
+      // Serial.print("Counter: ");
+      // Serial.println(counterSensor.getLightValue());
+      if(currentCounterState != counterSensor.getCurrentState()){
+        currentCounterState = counterSensor.getCurrentState();
+        reportCounterBlocked();
       }
       
-      if(currentCarCount != counterSensor.getCarCounter()){
-        currentCarCount = counterSensor.getCarCounter();
-        reportCar();
-      }
       delay(1000);
     }
 };
