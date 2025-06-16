@@ -1,6 +1,6 @@
 #ifndef SMARTPARKING_H
 #define SMARTPARKING_H
-#include "WifiManager.h"
+#include <WiFiManager.h>
 #include "MQTTClient.h"
 #include "./Sensor/GateSensor.h"
 #include "./Sensor/SmartCounter.h"
@@ -11,17 +11,18 @@
 
 class SmartParking {
   private:
-    WifiManager wifiManager;
     MQTTClient mqttClient;
     Actuator actuator;
     GateSensor gateSensor;
     SmartCounter counterSensor;
+    WiFiManager wifiManager;
 
     String currentCounterState;
     String currentGateState;
 
     const char* updateTopic;
     const char* deltaTopic;
+    const char* SSID;
 
     StaticJsonDocument<JSON_OBJECT_SIZE(64)> inputDoc;
     StaticJsonDocument<JSON_OBJECT_SIZE(16)> outputDoc;
@@ -118,9 +119,9 @@ class SmartParking {
     }
 
   public:
-    SmartParking(const char* SSID, const char* password, const char* clientId, const char* broker,const int &port, 
+    SmartParking(const char* SSID, const char* clientId, const char* broker,const int &port, 
       const byte& actuatorPin, const byte& gateSensorPin, const byte& counterSensorPin, const char* updateTopic, const char* deltaTopic)
-      : wifiManager(SSID, password),
+      : SSID(SSID),
         mqttClient(broker, port, clientId),
         actuator(actuatorPin), gateSensor(gateSensorPin, DEF_THRESHOLD, DEF_LAPSUS), counterSensor(counterSensorPin, DEF_THRESHOLD, DEF_LAPSUS),
         updateTopic(updateTopic), deltaTopic(deltaTopic), currentCounterState("CLEAR"), currentGateState("CLEAR")
@@ -129,7 +130,8 @@ class SmartParking {
 
 
     void init(){
-      wifiManager.connect();
+      WiFi.mode(WIFI_AP_STA);
+      wifiManager.autoConnect(SSID);
       actuator.init();
       gateSensor.init();
       counterSensor.init();
