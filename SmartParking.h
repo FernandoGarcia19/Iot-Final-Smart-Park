@@ -2,8 +2,7 @@
 #define SMARTPARKING_H
 #include <WiFiManager.h>
 #include "MQTTClient.h"
-#include "./Sensor/GateSensor.h"
-#include "./Sensor/SmartCounter.h"
+#include "./Sensor/Sensor.h"
 #include "./Actuator/Actuator.h"
 
 #define DEF_THRESHOLD 1600
@@ -13,8 +12,8 @@ class SmartParking {
   private:
     MQTTClient mqttClient;
     Actuator actuator;
-    GateSensor gateSensor;
-    SmartCounter counterSensor;
+    Sensor gateSensor;
+    Sensor counterSensor;
     WiFiManager wifiManager;
 
     String currentCounterState;
