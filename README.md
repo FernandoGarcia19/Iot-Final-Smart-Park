@@ -1,4 +1,4 @@
-# IoT Final Project: Smart Park
+# IoT Final Project: Smart Parking
 
 A smart IoT-based parking management system designed to monitor and automatize the parking gates and provide analytica via cloud Services such as Quicksight. The project uses ESP32 microcontrollers, and AWS. 
 
@@ -61,7 +61,11 @@ A smart IoT-based parking management system designed to monitor and automatize t
 .
 ├── SmartParking.h     # Core logic for parking management
 ├── README.md          # Project documentation
-└── [Other files...]
+├── MQTTClient.h       # Managing MQTT Connection using PubSubClient library
+├── Actuator           # Folder containing Actuator classes
+├── Sensor             # Folder containing Sensor class
+└── AWS                # AWS Lambda Functions, Rules and Step Functions logic
+
 ```
 
 ## Contributing
