@@ -15,7 +15,8 @@ async function getThingNames(userId) {
       
       return {
           entrance: result.Item.entrance_thing_name || null,
-          exit: result.Item.exit_thing_name || null
+          exit: result.Item.exit_thing_name || null,
+          parking_id: result.Item.parking_id || null
       };
   } catch (error) {
       console.error('Error obtaining ThingNames from DynamoDB: ', error);
@@ -91,7 +92,7 @@ const createGateHandler = (intentName, gateType, requestType) => {
                     speakOutput = `The current sensor lapsus is ${lapsus} seconds and threshold is ${threshold}`;
                 } else {
                     const state = shadowData.state.reported.gate_actuator;
-                    const gateName = gateType.charAt(0).toUpperCase() + gateType.slice(1); // Capitalize first letter
+                    const gateName = gateType.charAt(0).toUpperCase() + gateType.slice(1); 
                     speakOutput = `The ${gateName} gate is currently ${state}.`;
                 }
             }
@@ -217,6 +218,223 @@ const openExitGateHandler = createGateControlHandler('openExitGateIntent', 'exit
 const closeExitGateHandler = createGateControlHandler('closeExitGateIntent', 'exit', 'closed');
 const setExitThresholdHandler = createConfigSetterHandler('setExitThresholdIntent', 'exit', 'threshold');
 const setExitLapsusHandler = createConfigSetterHandler('setExitLapsusIntent', 'exit', 'lapsus');
+
+
+const getMaxCapacityHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'getMaxCapacityIntent';
+    },
+    async handle(handlerInput) {
+        const userId = handlerInput.requestEnvelope.session.user.userId;
+        const thingNames = await getThingNames(userId);
+        
+        if (!thingNames.parking_id) {
+            const speakOutput = 'I could not find the parking ID. Please set it up first.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+
+        const params = {
+            TableName: 'parking_lot',
+            Key: { serial_number: thingNames.parking_id }
+        };
+
+        try {
+            const result = await dynamoDb.get(params).promise();
+            const maxCapacity = result.Item ? result.Item.max_capacity : 0;
+            const speakOutput = `The maximum capacity of the parking is ${maxCapacity} cars.`;
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        } catch (error) {
+            console.error('Error obtaining max capacity from DynamoDB: ', error);
+            const speakOutput = 'There was an error obtaining the maximum capacity. Please try again later.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+    }
+}
+
+const getCurrentCarCountHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'getCurrentCarCountIntent';
+    },
+    async handle(handlerInput) {
+        const userId = handlerInput.requestEnvelope.session.user.userId;
+        const thingNames = await getThingNames(userId);
+        
+        if (!thingNames.parking_id) {
+            const speakOutput = 'I could not find the parking ID. Please set it up first.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+
+        const params = {
+            TableName: 'parking_lot',
+            Key: { serial_number: thingNames.parking_id }
+        };
+
+        try {
+            const result = await dynamoDb.get(params).promise();
+            const current_car_count = result.Item ? result.Item.current_car_count : 0;
+            const speakOutput = `The current car count of the parking is ${current_car_count} cars.`;
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        } catch (error) {
+            console.error('Error obtaining car count from DynamoDB: ', error);
+            const speakOutput = 'There was an error obtaining the car count. Please try again later.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+    }
+}
+
+const setMaxCapacityHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'setMaxCapacityIntent';
+    },
+    async handle(handlerInput) {
+        const capacityValue = handlerInput.requestEnvelope.request.intent.slots.capacity.value;
+        
+        if (!capacityValue || isNaN(parseInt(capacityValue))) {
+            const speakOutput = "I couldn't understand the capacity value. Please try again with a valid number.";
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+        
+        const userId = handlerInput.requestEnvelope.session.user.userId;
+        const thingNames = await getThingNames(userId);
+        
+        if (!thingNames.parking_id) {
+            const speakOutput = 'I could not find the parking ID. Please set it up first.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+
+        const capacity = parseInt(capacityValue);
+        
+        const params = {
+            TableName: 'parking_lot',
+            Key: { serial_number: thingNames.parking_id },
+            UpdateExpression: 'set max_capacity = :capacity',
+            ExpressionAttributeValues: {
+                ':capacity': capacity
+            },
+            ReturnValues: 'UPDATED_NEW'
+        };
+
+        try {
+            await dynamoDb.update(params).promise();
+            const speakOutput = `The maximum capacity has been updated to ${capacity} cars.`;
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        } catch (error) {
+            console.error('Error updating max capacity in DynamoDB: ', error);
+            const speakOutput = 'There was an error updating the maximum capacity. Please try again later.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+    }
+};
+
+const setCurrentCarCountHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'setCurrentCarCountIntent';
+    },
+    async handle(handlerInput) {
+        const countValue = handlerInput.requestEnvelope.request.intent.slots.count.value;
+        
+        if (!countValue || isNaN(parseInt(countValue))) {
+            const speakOutput = "I couldn't understand the car count value. Please try again with a valid number.";
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+        
+        const userId = handlerInput.requestEnvelope.session.user.userId;
+        const thingNames = await getThingNames(userId);
+        
+        if (!thingNames.parking_id) {
+            const speakOutput = 'I could not find the parking ID. Please set it up first.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+
+        const count = parseInt(countValue);
+        
+        const getParams = {
+            TableName: 'parking_lot',
+            Key: { serial_number: thingNames.parking_id }
+        };
+        
+        try {
+            const result = await dynamoDb.get(getParams).promise();
+            const maxCapacity = result.Item ? result.Item.max_capacity : 0;
+            
+            if (count > maxCapacity) {
+                const speakOutput = `The car count cannot exceed the maximum capacity of ${maxCapacity}. Please set a lower value.`;
+                return handlerInput.responseBuilder
+                    .speak(speakOutput)
+                    .reprompt(speakOutput)
+                    .getResponse();
+            }
+    
+            const updateParams = {
+                TableName: 'parking_lot',
+                Key: { serial_number: thingNames.parking_id },
+                UpdateExpression: 'set current_car_count = :count',
+                ExpressionAttributeValues: {
+                    ':count': count
+                },
+                ReturnValues: 'UPDATED_NEW'
+            };
+            
+            await dynamoDb.update(updateParams).promise();
+            
+            const availableSpaces = maxCapacity - count;
+            const speakOutput = `The current car count has been updated to ${count} cars. There are ${availableSpaces} parking spaces available.`;
+            
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+                
+        } catch (error) {
+            console.error('Error updating current car count in DynamoDB: ', error);
+            const speakOutput = 'There was an error updating the current car count. Please try again later.';
+            return handlerInput.responseBuilder
+                .speak(speakOutput)
+                .reprompt(speakOutput)
+                .getResponse();
+        }
+    }
+};
 
 const LaunchRequestHandler = {
     canHandle(handlerInput) {
@@ -354,6 +572,11 @@ exports.handler = Alexa.SkillBuilders.custom()
         setEntranceLapsusHandler,
         setExitThresholdHandler,
         setExitLapsusHandler,
+        // Parking lot handlers
+        getMaxCapacityHandler,
+        getCurrentCarCountHandler,
+        setCurrentCarCountHandler,
+        setMaxCapacityHandler,
         // Standard handlers
         LaunchRequestHandler,
         HelpIntentHandler,

@@ -1,0 +1,92 @@
+{
+  "Comment": "State machine for handling gate sensor rule trigger",
+  "StartAt": "handleInput",
+  "States": {
+    "handleInput": {
+      "Type": "Pass",
+      "Next": "isThingType",
+      "Assign": {
+        "selected": "{% $states.input %}"
+      }
+    },
+    "isThingType": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "isParkingLotFull",
+          "Condition": "{% ($selected.thing_purpose) = (\"entr\") %}"
+        }
+      ],
+      "Default": "openGate"
+    },
+    "isParkingLotFull": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Arguments": {
+        "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:is_full:$LATEST",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Next": "isFull",
+      "Assign": {
+        "result": "{%$states.result.Payload%}"
+      },
+      "Output": {
+        "result": "{%$states.result.Payload%}"
+      }
+    },
+    "isFull": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Pass",
+          "Condition": "{% $result.is_full = (true) %}"
+        }
+      ],
+      "Default": "openGate",
+      "Output": "{%$selected%}"
+    },
+    "Pass": {
+      "Type": "Pass",
+      "End": true
+    },
+    "openGate": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Output": "{% $states.result.Payload %}",
+      "Arguments": {
+        "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:open_gate:$LATEST",
+        "Payload": "{% $states.input %}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "End": true
+    }
+  },
+  "QueryLanguage": "JSONata"
+}
