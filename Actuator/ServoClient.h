@@ -1,7 +1,7 @@
 #ifndef SERVOCLIENT_H
 #define SERVOCLIENT_H
-#define CLOSED_ANGLE 90
-#define OPEN_ANGLE 0
+#define CLOSED_ANGLE 180
+#define OPEN_ANGLE 90
 #include <ESP32Servo.h>
 
 class ServoClient {

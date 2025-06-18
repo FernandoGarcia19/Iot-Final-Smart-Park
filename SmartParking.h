@@ -5,8 +5,8 @@
 #include "./Sensor/Sensor.h"
 #include "./Actuator/Actuator.h"
 
-#define DEF_THRESHOLD 1600
-#define DEF_LAPSUS 2
+#define DEF_THRESHOLD 2500
+#define DEF_LAPSUS 1
 
 class SmartParking {
   private:
@@ -158,6 +158,17 @@ class SmartParking {
     }
 
     void loop(){
+
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("WiFi disconnected! Attempting to reconnect...");
+        wifiManager.autoConnect(SSID);  // Will block until connected or timeout
+        if (WiFi.status() != WL_CONNECTED) {
+          Serial.println("Still not connected to WiFi.");
+          delay(5000); // Wait before retrying
+          return;
+        }
+        Serial.println("Reconnected to WiFi!");
+      }
       if(!mqttClient.isConnected()){
         mqttClient.connect();
         mqttClient.subscribe(deltaTopic);
