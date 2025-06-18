@@ -8,11 +8,19 @@ class Sensor {
     int lapsus;
     int lightValue;
     bool isBlocked;
+    unsigned long startMillis = 0;
+    bool timingBlock = false;
+    bool hasTriggered = false;
+    String currentState;
   public:
     Sensor(const byte& pin, const int& threshold, const int& lapsus)
-    :pin(pin), threshold(threshold), lapsus(lapsus), lightValue(0), isBlocked(false){
+    :pin(pin), threshold(threshold), lapsus(lapsus), lightValue(0), isBlocked(false), currentState("CLEAR"){
     }
     ~Sensor(){}
+
+    void init(){
+      pinMode(pin, INPUT);
+    }
 
     int getLightValue(){
       return this->lightValue;
@@ -38,15 +46,30 @@ class Sensor {
       return isBlocked;
     }
 
-    void init(){
-      pinMode(pin, INPUT);
-    }
-
     void readLightValue(){
       lightValue = analogRead(pin);
     }
 
-    virtual void loop() = 0;
+    void loop() {
+      readLightValue();
+      if (lightValue <= threshold) {
+        if (!timingBlock) {
+          startMillis = millis();
+          timingBlock = true;
+        } else if (!hasTriggered && (millis() - startMillis >= (unsigned long)(lapsus * 1000))) {
+          currentState = "BLOCKED";
+          hasTriggered = true;
+        }
+      } else {
+        timingBlock = false;
+        hasTriggered = false;
+        currentState = "CLEAR";
+      }
+    }
+
+    String getCurrentState() {
+      return currentState;
+    }
 
 };
 

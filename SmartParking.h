@@ -1,27 +1,27 @@
 #ifndef SMARTPARKING_H
 #define SMARTPARKING_H
-#include "WifiManager.h"
+#include <WiFiManager.h>
 #include "MQTTClient.h"
-#include "./Sensor/GateSensor.h"
-#include "./Sensor/SmartCounter.h"
+#include "./Sensor/Sensor.h"
 #include "./Actuator/Actuator.h"
 
-#define DEF_THRESHOLD 1600
-#define DEF_LAPSUS 2
+#define DEF_THRESHOLD 2500
+#define DEF_LAPSUS 1
 
 class SmartParking {
   private:
-    WifiManager wifiManager;
     MQTTClient mqttClient;
     Actuator actuator;
-    GateSensor gateSensor;
-    SmartCounter counterSensor;
+    Sensor gateSensor;
+    Sensor counterSensor;
+    WiFiManager wifiManager;
 
     String currentCounterState;
     String currentGateState;
 
     const char* updateTopic;
     const char* deltaTopic;
+    const char* SSID;
 
     StaticJsonDocument<JSON_OBJECT_SIZE(64)> inputDoc;
     StaticJsonDocument<JSON_OBJECT_SIZE(16)> outputDoc;
@@ -118,9 +118,9 @@ class SmartParking {
     }
 
   public:
-    SmartParking(const char* SSID, const char* password, const char* clientId, const char* broker,const int &port, 
+    SmartParking(const char* SSID, const char* clientId, const char* broker,const int &port, 
       const byte& actuatorPin, const byte& gateSensorPin, const byte& counterSensorPin, const char* updateTopic, const char* deltaTopic)
-      : wifiManager(SSID, password),
+      : SSID(SSID),
         mqttClient(broker, port, clientId),
         actuator(actuatorPin), gateSensor(gateSensorPin, DEF_THRESHOLD, DEF_LAPSUS), counterSensor(counterSensorPin, DEF_THRESHOLD, DEF_LAPSUS),
         updateTopic(updateTopic), deltaTopic(deltaTopic), currentCounterState("CLEAR"), currentGateState("CLEAR")
@@ -129,7 +129,8 @@ class SmartParking {
 
 
     void init(){
-      wifiManager.connect();
+      WiFi.mode(WIFI_AP_STA);
+      wifiManager.autoConnect(SSID);
       actuator.init();
       gateSensor.init();
       counterSensor.init();
@@ -157,6 +158,17 @@ class SmartParking {
     }
 
     void loop(){
+
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("WiFi disconnected! Attempting to reconnect...");
+        wifiManager.autoConnect(SSID);  // Will block until connected or timeout
+        if (WiFi.status() != WL_CONNECTED) {
+          Serial.println("Still not connected to WiFi.");
+          delay(5000); // Wait before retrying
+          return;
+        }
+        Serial.println("Reconnected to WiFi!");
+      }
       if(!mqttClient.isConnected()){
         mqttClient.connect();
         mqttClient.subscribe(deltaTopic);

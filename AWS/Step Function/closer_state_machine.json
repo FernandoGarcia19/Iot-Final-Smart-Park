@@ -1,0 +1,212 @@
+{
+  "Comment": "State machine for handling the counter sensor rule trigger",
+  "StartAt": "handleInput",
+  "States": {
+    "handleInput": {
+      "Type": "Pass",
+      "Next": "parkingFeatures",
+      "Assign": {
+        "selected": "{% $states.input %}"
+      }
+    },
+    "parkingFeatures": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:getItem",
+      "Arguments": {
+        "TableName": "parking_lot",
+        "Key": {
+          "serial_number": "{%$selected.serial_number%}"
+        }
+      },
+      "Next": "isThingType",
+      "Assign": {
+        "max_capacity": "{%$states.result.Item.max_capacity.N%}",
+        "current_car_count": "{%$states.result.Item.current_car_count.N%}"
+      },
+      "Output": {}
+    },
+    "isThingType": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "entranceFlow",
+          "Condition": "{% $selected.thing_purpose = \"entr\"%}",
+          "Output": {
+            "thing": "{%$selected%}",
+            "value": 1
+          }
+        }
+      ],
+      "Default": "exitFlow",
+      "Output": {
+        "thing": "{%$selected%}",
+        "value": -1
+      }
+    },
+    "entranceFlow": {
+      "Type": "Parallel",
+      "Next": "closeGate",
+      "Branches": [
+        {
+          "StartAt": "insertEntrance",
+          "States": {
+            "insertEntrance": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Output": "{% $states.result.Payload %}",
+              "Arguments": {
+                "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:insert_smart_park_data:$LATEST",
+                "Payload": "{% $states.input %}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2,
+                  "JitterStrategy": "FULL"
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "increaseCarCount",
+          "States": {
+            "increaseCarCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Output": "{% $states.result.Payload %}",
+              "Arguments": {
+                "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:update_parking_table:$LATEST",
+                "Payload": "{% $states.input %}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2,
+                  "JitterStrategy": "FULL"
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ],
+      "Arguments": {
+        "thing": "{%$selected%}",
+        "max_capacity": "{% $max_capacity %}",
+        "current_car_count": "{%$current_car_count%}",
+        "value": 1
+      }
+    },
+    "exitFlow": {
+      "Type": "Parallel",
+      "Next": "closeGate",
+      "Branches": [
+        {
+          "StartAt": "insertExit",
+          "States": {
+            "insertExit": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Output": "{% $states.result.Payload %}",
+              "Arguments": {
+                "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:insert_smart_park_data:$LATEST",
+                "Payload": "{% $states.input %}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2,
+                  "JitterStrategy": "FULL"
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "decreaseCarCount",
+          "States": {
+            "decreaseCarCount": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Output": "{% $states.result.Payload %}",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2,
+                  "JitterStrategy": "FULL"
+                }
+              ],
+              "Arguments": {
+                "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:update_parking_table:$LATEST",
+                "Payload": "{% $states.input %}"
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "Arguments": {
+        "thing": "{%$selected%}",
+        "max_capacity": "{%$max_capacity%}",
+        "current_car_count": "{%$current_car_count%}",
+        "value": -1
+      }
+    },
+    "closeGate": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Output": "{% $states.result.Payload %}",
+      "Arguments": {
+        "FunctionName": "arn:aws:lambda:us-east-2:955484004835:function:close_gate:$LATEST",
+        "Payload": "{%$selected%}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "End": true
+    }
+  },
+  "QueryLanguage": "JSONata"
+}
