@@ -83,10 +83,3 @@ Feel free to use, modify, and distribute this project.
 FernandoGarcia19 on GitHub
 
 ---
-
-**Note:**  
-Update this README with specific details about your hardware setup, network requirements, and additional features as your project evolves.
-
----
-
-Let me know if you'd like a more detailed section for setup, wiring diagrams, or code explanations!
